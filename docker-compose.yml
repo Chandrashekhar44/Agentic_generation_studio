@@ -1,0 +1,120 @@
+name: studio
+
+x-app: &app
+  build: .
+  image: studio-app:local
+
+x-env: &env
+  JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-secret-change-me}
+  WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-only-webhook-secret}
+  ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
+  PROVIDER_A_URL: http://provider:4000/a
+  PROVIDER_B_URL: http://provider:4000/b
+  TENANT_STEP_CONCURRENCY: ${TENANT_STEP_CONCURRENCY:-3}
+  MAX_ACTIVE_RUNS_PER_TENANT: ${MAX_ACTIVE_RUNS_PER_TENANT:-100}
+  RATE_LIMIT_RPS: ${RATE_LIMIT_RPS:-50}
+  RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-100}
+
+services:
+  migrate:
+    <<: *app
+    command: ["node", "src/migrate.js"]
+    environment:
+      SERVICE_NAME: migrate
+      ADMIN_DATABASE_URL: "${ADMIN_DATABASE_URL}"
+      APP_DB_PASSWORD: "${APP_DB_PASSWORD}"
+      SYSTEM_DB_PASSWORD: "${SYSTEM_DB_PASSWORD}"
+    volumes:
+      - ./supabase-ca.crt:/app/supabase-ca.crt:ro
+    restart: "no"
+
+  provider:
+    <<: *app
+    command: ["node", "provider/server.js"]
+    environment:
+      SERVICE_NAME: provider
+      LATENCY_MIN_MS: ${LATENCY_MIN_MS:-1000}
+      LATENCY_MAX_MS: ${LATENCY_MAX_MS:-20000}
+      ERROR_RATE: ${ERROR_RATE:-0.10}
+      RATE_LIMIT_RATE: ${RATE_LIMIT_RATE:-0.10}
+      HANG_RATE: ${HANG_RATE:-0.02}
+      CHAOS_DOWN: ${CHAOS_DOWN:-}
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      retries: 20
+
+  api:
+    <<: *app
+    env_file:
+      - .env.runtime
+    command: ["node", "src/server.js"]
+    environment:
+      <<: *env
+      SERVICE_NAME: api
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./supabase-ca.crt:/app/supabase-ca.crt:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      provider:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      retries: 30
+    restart: unless-stopped
+
+  worker:
+    <<: *app
+    container_name: studio-worker
+    env_file:
+      - .env.runtime
+    command: ["node", "src/worker.js"]
+    environment:
+      <<: *env
+      SERVICE_NAME: worker
+      WORKER_CONCURRENCY: "8"
+    volumes:
+      - ./supabase-ca.crt:/app/supabase-ca.crt:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      provider:
+        condition: service_healthy
+    restart: unless-stopped
+
+  seed:
+    <<: *app
+    command: ["node", "scripts/seed.js"]
+    environment:
+      SERVICE_NAME: seed
+      BASE_URL: "http://api:3000"
+      WEBHOOK_SECRET: "${WEBHOOK_SECRET:-dev-only-webhook-secret}"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: "no"
+
+  tools:
+    <<: *app
+    profiles: ["tools"]
+    user: root
+    command: ["node", "--test", "--test-concurrency=1", "tests/scenarios.test.js"]
+    environment:
+      SERVICE_NAME: tools
+      BASE_URL: http://api:3000
+      PROVIDER_URL: http://provider:4000
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-only-webhook-secret}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
+      ADMIN_DATABASE_URL: "${ADMIN_DATABASE_URL}"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    depends_on:
+      api:
+        condition: service_healthy

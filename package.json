@@ -1,0 +1,22 @@
+{
+  "name": "agentic-generation-studio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.3"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "worker": "node src/worker.js",
+    "migrate": "node src/migrate.js",
+    "provider": "node provider/server.js",
+    "test": "node --test --test-concurrency=1 tests/scenarios.test.js"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.8",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1"
+  }
+}

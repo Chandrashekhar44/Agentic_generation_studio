@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic Generation Studio</title>
+<style>
+:root{
+  --fog:#eceff3; --panel:#fff; --ink:#18212b; --mute:#5d6b7a; --line:#d5dbe2; --cobalt:#2a55e5; --cobalt-d:#1d3fb8;
+  --ok:#17795a; --warn:#a86a12; --bad:#b83a26; --frame:#dfe4ea; --reel:#18212b;
+  --radius:10px; --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root{--fog:#12171d;--panel:#1a2129;--ink:#e8edf2;--mute:#97a4b2;--line:#2c3744;--frame:#27313c;--cobalt:#6d8cff;--cobalt-d:#8ea5ff;--ok:#4cc79a;--warn:#e0a84e;--bad:#ef7d6a;--reel:#0b0f13}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fog);color:var(--ink);font:15px/1.5 var(--sans)}
+h1,h2,h3{margin:0;letter-spacing:-.01em}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 13px}
+button:hover{border-color:var(--mute)}
+button.primary{background:var(--cobalt);border-color:var(--cobalt);color:#fff;font-weight:600}
+button.primary:hover{background:var(--cobalt-d)}
+button.danger{color:var(--bad);border-color:var(--bad)}
+button:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--cobalt);outline-offset:2px}
+input,select,textarea{width:100%;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:8px 10px}
+textarea{resize:vertical;min-height:84px}
+label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
+.hidden{display:none!important}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+
+/* auth */
+#auth{max-width:380px;margin:12vh auto;padding:0 16px}
+#auth h1{font-size:28px;margin-bottom:4px}
+#auth p{color:var(--mute);margin:0 0 18px}
+.row{display:flex;gap:10px;align-items:center}.row>*{flex:1}.row>.fit{flex:none}
+.err{color:var(--bad);font-size:14px;min-height:20px;margin-top:8px}
+
+/* shell */
+header{display:flex;align-items:center;gap:14px;padding:10px 20px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:17px;margin-right:6px}
+header select{width:auto;min-width:170px}
+.spacer{flex:1}
+.wallet{font-variant-numeric:tabular-nums;border:1px solid var(--line);border-radius:999px;padding:5px 14px;background:var(--fog)}
+.wallet b{font-size:16px}.wallet small{color:var(--mute)}
+main{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr) minmax(250px,320px);gap:16px;padding:16px 20px;align-items:start}
+@media(max-width:1100px){main{grid-template-columns:minmax(0,1fr)}}
+.cost{display:flex;justify-content:space-between;color:var(--mute);font-size:13px;margin:12px 0}
+
+/* run board */
+.board-head{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.board-head h2{font-size:18px;max-width:60ch;overflow-wrap:anywhere}
+.badge{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);margin-right:6px;white-space:nowrap}
+.badge.succeeded{color:var(--ok);border-color:var(--ok)}.badge.partial,.badge.degraded{color:var(--warn);border-color:var(--warn)}
+.badge.failed{color:var(--bad);border-color:var(--bad)}.badge.canceled{color:var(--mute)}
+.badge.live{color:var(--cobalt);border-color:var(--cobalt)}
+.meter{height:8px;border-radius:99px;background:var(--frame);overflow:hidden;margin:10px 0 4px}
+.meter>i{display:block;height:100%;background:var(--cobalt);transition:width .4s}
+.sub{color:var(--mute);font-size:13px}
+
+.strip{display:flex;gap:6px;padding:12px 10px;background:var(--reel);border-radius:8px;overflow-x:auto;margin:14px 0}
+.frame{flex:0 0 112px;height:68px;border-radius:4px;background:var(--frame);position:relative;overflow:hidden;display:grid;place-items:center;color:var(--mute);font-size:12px}
+.frame img{width:100%;height:100%;object-fit:cover;display:block}
+.frame .tag{position:absolute;left:5px;bottom:3px;font-size:11px;color:#fff;text-shadow:0 1px 2px #000}
+.frame.running{outline:2px solid var(--cobalt);animation:pulse 1.2s ease-in-out infinite}
+.frame.failed{background:repeating-linear-gradient(45deg,#6b2418,#6b2418 6px,#7d2d1f 6px,#7d2d1f 12px);color:#fff}
+.frame.canceled{background:repeating-linear-gradient(45deg,var(--frame),var(--frame) 6px,var(--line) 6px,var(--line) 12px)}
+.frame.succeeded:not(:has(img)){background:var(--ok);color:#fff}
+@keyframes pulse{50%{opacity:.6}}
+@media(prefers-reduced-motion:reduce){.frame.running{animation:none}.bar.run i{animation:none}}
+
+.steps{display:grid;gap:8px;margin:6px 0 14px}
+.step{display:grid;grid-template-columns:104px 1fr 150px;gap:10px;align-items:center;font-size:13px}
+.bar{height:6px;border-radius:99px;background:var(--frame);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--ok);transition:width .3s}
+.bar.run i{width:40%;background:var(--cobalt);animation:slide 1.1s ease-in-out infinite alternate}
+.bar.ok i{width:100%}.bar.bad i{width:100%;background:var(--bad)}.bar.off i{width:100%;background:var(--line)}
+@keyframes slide{from{margin-left:0}to{margin-left:60%}}
+.step .meta{color:var(--mute);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player{position:relative;aspect-ratio:16/9;background:var(--reel);border-radius:8px;overflow:hidden;margin:8px 0}
+.player img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .6s}
+.player img.on{opacity:1}
+.player .cap{position:absolute;left:10px;bottom:8px;color:#fff;font-size:12px;text-shadow:0 1px 3px #000}
+.credits{display:flex;gap:18px;flex-wrap:wrap;font-variant-numeric:tabular-nums;margin-top:8px}
+.credits span b{display:block;font-size:18px}
+.log{font:12px/1.5 var(--mono);color:var(--mute);max-height:140px;overflow:auto;background:var(--fog);border-radius:8px;padding:8px 10px;margin-top:12px}
+
+/* history */
+.hist{display:grid;gap:6px;max-height:70vh;overflow:auto}
+.hitem{text-align:left;display:block;width:100%;padding:9px 11px}
+.hitem.sel{border-color:var(--cobalt);box-shadow:inset 3px 0 0 var(--cobalt)}
+.hitem .t{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hitem .m{display:flex;justify-content:space-between;font-size:12px;color:var(--mute);margin-top:2px}
+.empty{color:var(--mute);padding:20px 0;text-align:center}
+
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);max-width:560px;width:calc(100% - 32px);padding:20px}
+dialog::backdrop{background:#0008}
+.srow{display:flex;gap:8px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding:8px 0}
+.srow small{color:var(--mute);display:block}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:9px 16px;border-radius:8px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<section id="auth" class="hidden">
+  <h1>Agentic Generation Studio</h1>
+  <p>Write a prompt, pick a style, get a short video.</p>
+  <div class="card">
+    <label for="a-email" style="margin-top:0">Email</label><input id="a-email" type="email" autocomplete="username">
+    <label for="a-pass">Password (8+ characters)</label><input id="a-pass" type="password" autocomplete="current-password">
+    <div class="row" style="margin-top:16px">
+      <button class="primary" id="btn-login">Log in</button>
+      <button id="btn-signup">Create account</button>
+    </div>
+    <div class="err" id="a-err" role="alert"></div>
+  </div>
+</section>
+
+<section id="app" class="hidden">
+  <header>
+    <h1>Studio</h1>
+    <label for="ws-select" class="sr" style="position:absolute;left:-9999px">Workspace</label>
+    <select id="ws-select" aria-label="Workspace"></select>
+    <button id="btn-new-ws">New workspace</button>
+    <button id="btn-members">Members</button>
+    <span class="spacer"></span>
+    <span class="wallet" title="Held credits are reserved for runs in progress"><b id="w-avail">–</b> <small>credits</small> <small id="w-held"></small></span>
+    <button id="btn-topup" title="Sends a signed payment.succeeded event through the real webhook">Add 100 credits</button>
+    <span class="sub" id="who"></span>
+    <button id="btn-logout">Log out</button>
+  </header>
+
+  <main>
+    <section class="card" aria-label="New generation">
+      <h2 style="font-size:17px">New video</h2>
+      <label for="prompt">Prompt</label>
+      <textarea id="prompt" maxlength="2000" placeholder="A fox crosses a rain-soaked city at night"></textarea>
+      <div class="row">
+        <div><label for="style">Style</label><select id="style"></select></div>
+        <div class="fit" style="width:110px"><label for="count">Scenes</label><select id="count"></select></div>
+      </div>
+      <div style="margin-top:6px"><button id="btn-styles">Manage styles</button></div>
+      <div class="cost"><span>Estimated cost</span><b id="cost">–</b></div>
+      <button class="primary" id="btn-go" style="width:100%">Generate</button>
+      <div class="err" id="g-err" role="alert"></div>
+      <p class="sub" style="margin-bottom:0">Tip: add <code>[fail:2,4]</code> to a prompt to make scenes 2 and 4 fail permanently and see a partial result.</p>
+    </section>
+
+    <section class="card" aria-live="polite" aria-label="Run">
+      <div id="run-empty" class="empty">Start a generation, or pick one from your history.</div>
+      <div id="run" class="hidden">
+        <div class="board-head">
+          <div><h2 id="r-prompt"></h2><div class="sub" id="r-style"></div></div>
+          <button class="danger" id="btn-cancel">Cancel run</button>
+        </div>
+        <div><span id="r-badges"></span></div>
+        <div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="r-meter"><i id="r-meter-i" style="width:0"></i></div>
+        <div class="sub" id="r-progress"></div>
+        <div class="strip" id="strip" aria-hidden="true"></div>
+        <div class="steps" id="steps"></div>
+        <div id="r-result"></div>
+        <div class="credits" id="r-credits"></div>
+        <div class="log hidden" id="r-log"></div>
+      </div>
+    </section>
+
+    <section class="card" aria-label="History">
+      <h2 style="font-size:17px;margin-bottom:10px">History</h2>
+      <div class="hist" id="hist"><div class="empty">No runs yet.</div></div>
+    </section>
+  </main>
+</section>
+
+<dialog id="dlg-styles">
+  <h2 style="font-size:17px">Styles</h2>
+  <p class="sub">Editing a style saves a new version. Runs already started keep the version they began with.</p>
+  <div id="style-list"></div>
+  <h3 style="font-size:15px;margin-top:16px" id="style-form-title">New style</h3>
+  <input type="hidden" id="s-id">
+  <label for="s-name">Name</label><input id="s-name" maxlength="80">
+  <label for="s-suffix">Prompt suffix</label><input id="s-suffix" maxlength="500">
+  <label for="s-neg">Negative prompt</label><input id="s-neg" maxlength="500">
+  <div class="row" style="margin-top:14px"><button class="primary" id="s-save">Save style</button><button id="s-reset">Clear form</button><button id="s-close">Close</button></div>
+  <div class="err" id="s-err" role="alert"></div>
+</dialog>
+
+<dialog id="dlg-members">
+  <h2 style="font-size:17px">Members</h2>
+  <div id="member-list"></div>
+  <label for="m-email">Invite by email (owners only)</label>
+  <div class="row"><input id="m-email" type="email" placeholder="teammate@example.com"><button class="fit" id="m-invite">Invite</button><button class="fit" id="m-close">Close</button></div>
+  <div class="err" id="m-err" role="alert"></div>
+</dialog>
+<div id="toast" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const COST = { plan: 1, image: 3, compose: 2 };
+const TERMINAL = ['succeeded', 'partial', 'failed', 'canceled'];
+const S = { token: localStorage.getItem('token'), email: localStorage.getItem('email'), ws: localStorage.getItem('ws'), workspaces: [], styles: [], run: null, runId: null, es: null, player: null };
+
+const toast = m => { const t = $('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3500); };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uuid = () => crypto.randomUUID ? crypto.randomUUID() : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+
+async function api(method, path, body, extra = {}) {
+  const headers = { ...extra };
+  if (S.token) headers.authorization = 'Bearer ' + S.token;
+  if (S.ws && !path.startsWith('/auth') && path !== '/workspaces') headers['x-workspace-id'] = S.ws;
+  if (body !== undefined) headers['content-type'] = 'application/json';
+  const res = await fetch(path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+  const data = res.status === 204 ? null : await res.json().catch(() => ({}));
+  if (res.status === 401 && S.token && !path.startsWith('/auth')) { logout(); throw new Error('Session expired — log in again'); }
+  if (!res.ok) { const e = new Error(data.message || data.error || res.statusText); e.status = res.status; e.data = data; e.retryAfter = res.headers.get('retry-after'); throw e; }
+  return data;
+}
+
+function showAuth() { $('auth').classList.remove('hidden'); $('app').classList.add('hidden'); }
+async function doAuth(kind) {
+  $('a-err').textContent = '';
+  try {
+    const r = await api('POST', '/auth/' + kind, { email: $('a-email').value, password: $('a-pass').value });
+    S.token = r.token; S.email = r.user.email; localStorage.setItem('token', S.token); localStorage.setItem('email', S.email);
+    await boot();
+  } catch (e) { $('a-err').textContent = e.message; }
+}
+$('btn-login').onclick = () => doAuth('login');
+$('btn-signup').onclick = () => doAuth('signup');
+$('a-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth('login'); });
+function logout() { closeStream(); S.token = null; localStorage.removeItem('token'); showAuth(); }
+$('btn-logout').onclick = logout;
+
+async function loadWorkspaces() {
+  S.workspaces = await api('GET', '/workspaces');
+  if (!S.workspaces.length) { const w = await api('POST', '/workspaces', { name: (S.email.split('@')[0] || 'My') + "'s workspace" }); S.workspaces = [w]; }
+  if (!S.workspaces.some(w => w.id === S.ws)) S.ws = S.workspaces[0].id;
+  localStorage.setItem('ws', S.ws);
+  $('ws-select').innerHTML = S.workspaces.map(w => `<option value="${w.id}" ${w.id === S.ws ? 'selected' : ''}>${esc(w.name)} (${w.role})</option>`).join('');
+}
+$('ws-select').onchange = async e => { S.ws = e.target.value; localStorage.setItem('ws', S.ws); closeStream(); S.run = null; S.runId = null; renderRun(); await refreshAll(); };
+$('btn-new-ws').onclick = async () => {
+  const name = prompt('Workspace name'); if (!name) return;
+  try { const w = await api('POST', '/workspaces', { name }); S.ws = w.id; await loadWorkspaces(); await refreshAll(); } catch (e) { toast(e.message); }
+};
+
+let walletTimer;
+async function refreshWallet() {
+  try { const w = await api('GET', '/wallet?limit=1'); $('w-avail').textContent = w.available; $('w-held').textContent = w.held ? `(${w.held} held)` : ''; S.available = w.available; } catch {}
+}
+const scheduleWallet = () => { clearTimeout(walletTimer); walletTimer = setTimeout(refreshWallet, 400); };
+$('btn-topup').onclick = async () => { try { await api('POST', '/dev/simulate-payment', { credits: 100 }); toast('Payment received: +100 credits'); refreshWallet(); } catch (e) { toast(e.message); } };
+
+async function loadStyles() {
+  S.styles = await api('GET', '/styles');
+  const cur = $('style').value;
+  $('style').innerHTML = '<option value="">No style</option>' + S.styles.map(s => `<option value="${s.id}">${esc(s.name)} · v${s.version}</option>`).join('');
+  if (S.styles.some(s => s.id === cur)) $('style').value = cur; else if (S.styles[0]) $('style').value = S.styles[0].id;
+}
+function renderStyleList() {
+  $('style-list').innerHTML = S.styles.map(s => `<div class="srow"><div><b>${esc(s.name)}</b> <small>v${s.version} · ${esc(s.prompt_suffix || 'no suffix')}</small></div>
+    <div><button data-edit="${s.id}">Edit</button> <button class="danger" data-del="${s.id}">Archive</button></div></div>`).join('') || '<div class="empty">No styles yet.</div>';
+}
+function clearStyleForm() { $('s-id').value = ''; $('s-name').value = ''; $('s-suffix').value = ''; $('s-neg').value = ''; $('style-form-title').textContent = 'New style'; $('s-err').textContent = ''; }
+$('btn-styles').onclick = () => { renderStyleList(); clearStyleForm(); $('dlg-styles').showModal(); };
+$('s-close').onclick = () => $('dlg-styles').close();
+$('s-reset').onclick = clearStyleForm;
+$('style-list').onclick = async e => {
+  const ed = e.target.dataset.edit, del = e.target.dataset.del;
+  if (ed) { const s = S.styles.find(x => x.id === ed); $('s-id').value = s.id; $('s-name').value = s.name; $('s-suffix').value = s.prompt_suffix; $('s-neg').value = s.negative_prompt; $('style-form-title').textContent = `Edit “${s.name}” (saves v${s.version + 1})`; }
+  if (del) { try { await api('DELETE', '/styles/' + del); await loadStyles(); renderStyleList(); } catch (er) { $('s-err').textContent = er.message; } }
+};
+$('s-save').onclick = async () => {
+  const body = { name: $('s-name').value, prompt_suffix: $('s-suffix').value, negative_prompt: $('s-neg').value }, id = $('s-id').value;
+  try { id ? await api('PUT', '/styles/' + id, body) : await api('POST', '/styles', body); await loadStyles(); renderStyleList(); clearStyleForm(); toast('Style saved'); }
+  catch (e) { $('s-err').textContent = e.message; }
+};
+
+$('btn-members').onclick = async () => {
+  $('m-err').textContent = '';
+  const list = await api('GET', `/workspaces/${S.ws}/members`);
+  $('member-list').innerHTML = list.map(m => `<div class="srow"><span>${esc(m.email)}</span><span class="badge">${m.role}</span></div>`).join('');
+  $('dlg-members').showModal();
+};
+$('m-close').onclick = () => $('dlg-members').close();
+$('m-invite').onclick = async () => {
+  try { const r = await api('POST', `/workspaces/${S.ws}/invites`, { email: $('m-email').value, role: 'member' }); $('m-email').value = ''; toast(r.status === 'added' ? 'Member added' : 'Invite saved — applies when they sign up'); $('btn-members').click(); }
+  catch (e) { $('m-err').textContent = e.status === 403 ? 'Only workspace owners can invite.' : e.message; }
+};
+
+$('count').innerHTML = [1, 2, 3, 4, 5, 6, 7, 8].map(n => `<option ${n === 3 ? 'selected' : ''}>${n}</option>`).join('');
+const estimate = () => COST.plan + (+$('count').value) * COST.image + COST.compose;
+const updateCost = () => { $('cost').textContent = estimate() + ' credits'; };
+$('count').onchange = updateCost; updateCost();
+
+$('btn-go').onclick = async () => {
+  $('g-err').textContent = '';
+  const prompt = $('prompt').value.trim();
+  if (!prompt) { $('g-err').textContent = 'Write a prompt first.'; return; }
+  const body = { prompt, style_id: $('style').value || null, image_count: +$('count').value };
+  const key = uuid();                                    
+  $('btn-go').disabled = true;
+  try {
+    let run;
+    for (let attempt = 0; ; attempt++) {
+      try { run = await api('POST', '/generations', body, { 'idempotency-key': key }); break; }
+      catch (e) { if (e.status || attempt >= 2) throw e; await new Promise(r => setTimeout(r, 600 * (attempt + 1))); }
+    }
+    refreshWallet(); await refreshHistory(); openRun(run.id);
+  } catch (e) {
+    if (e.status === 402) $('g-err').textContent = `Not enough credits: this run needs ${e.data.required}, you have ${e.data.available}. Use “Add 100 credits”.`;
+    else if (e.status === 429) $('g-err').textContent = `Too many requests — try again in ${e.retryAfter || 'a few'} seconds.`;
+    else $('g-err').textContent = e.message;
+  } finally { $('btn-go').disabled = false; }
+};
+
+async function refreshHistory() {
+  const list = await api('GET', '/generations?limit=40');
+  $('hist').innerHTML = list.length ? list.map(g => `<button class="hitem ${g.id === S.runId ? 'sel' : ''}" data-id="${g.id}">
+    <span class="t">${esc(g.prompt)}</span><span class="m"><span class="badge ${g.status}">${g.cached ? 'cached' : g.status}</span><span>${g.progress.done}/${g.progress.total} · ${g.credits.committed || g.credits.reserved} cr</span></span></button>`).join('')
+    : '<div class="empty">No runs yet.</div>';
+}
+$('hist').onclick = e => { const b = e.target.closest('[data-id]'); if (b) openRun(b.dataset.id); };
+
+function closeStream() { if (S.es) { S.es.abort(); S.es = null; } }
+async function openRun(id) {
+  closeStream(); S.runId = id; S.log = [];
+  S.run = await api('GET', '/generations/' + id);
+  renderRun(); refreshHistory();
+  if (!TERMINAL.includes(S.run.status)) stream(id, S.run.event_seq);
+}
+
+async function stream(id, last) {
+  const ac = new AbortController(); S.es = ac;
+  let backoff = 500;
+  while (!ac.signal.aborted && S.runId === id) {
+    try {
+      const res = await fetch(`/generations/${id}/events`, { headers: { authorization: 'Bearer ' + S.token, 'x-workspace-id': S.ws, 'last-event-id': String(last), accept: 'text/event-stream' }, signal: ac.signal });
+      if (!res.ok) throw new Error('stream ' + res.status);
+      backoff = 500;
+      const dec = new TextDecoder(); let buf = '';
+      for await (const chunk of res.body) {
+        buf += dec.decode(chunk, { stream: true });
+        let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const block = buf.slice(0, i); buf = buf.slice(i + 2);
+          let evId = null, type = 'message', data = '';
+          for (const ln of block.split('\n')) { if (ln.startsWith('id: ')) evId = +ln.slice(4); else if (ln.startsWith('event: ')) type = ln.slice(7); else if (ln.startsWith('data: ')) data += ln.slice(6); }
+          if (type === 'end') return;
+          if (evId === null || evId <= last) continue;              
+          last = evId; await onEvent(type, JSON.parse(data));
+        }
+      }
+      if (S.run && TERMINAL.includes(S.run.status)) return;
+    } catch (e) { if (ac.signal.aborted) return; }
+    await new Promise(r => setTimeout(r, backoff)); backoff = Math.min(backoff * 2, 5000);
+  }
+}
+const stepOf = (kind, idx) => S.run.steps.find(s => s.kind === kind && s.idx === idx);
+async function onEvent(type, d) {
+  if (S.runId !== d.generation_id) return;
+  const r = S.run, line = t => S.log.push(`#${d.seq} ${t}`);
+  switch (type) {
+    case 'step.started': Object.assign(stepOf(d.kind, d.idx) || {}, { status: 'running', attempts: d.attempt }); line(`${d.kind} ${d.idx + 1} started (attempt ${d.attempt})`); break;
+    case 'step.resumed': Object.assign(stepOf(d.kind, d.idx) || {}, { status: 'running' }); line(`${d.kind} ${d.idx + 1} resumed after a worker restart`); break;
+    case 'step.retry': Object.assign(stepOf(d.kind, d.idx) || {}, { status: 'pending', error: d.error }); line(`${d.kind} ${d.idx + 1} will retry: ${d.error}`); break;
+    case 'step.succeeded': Object.assign(stepOf(d.kind, d.idx) || {}, { status: 'succeeded', provider: d.provider, image_url: d.image_url }); if (d.degraded) r.degraded = true; line(`${d.kind} ${d.idx + 1} done via provider ${d.provider}`); break;
+    case 'step.failed': Object.assign(stepOf(d.kind, d.idx) || {}, { status: 'failed', error: d.error }); line(`${d.kind} ${d.idx + 1} failed: ${d.error}`); break;
+    case 'generation.status': r.status = d.status; line(`status → ${d.status}`); break;
+    case 'generation.completed': S.run = await api('GET', '/generations/' + r.id); refreshHistory(); line(`finished: ${d.status}`); break;
+  }
+  S.run.progress = { done: S.run.steps.filter(s => ['succeeded', 'failed', 'canceled'].includes(s.status)).length, total: S.run.steps.length };
+  renderRun(); scheduleWallet();
+}
+$('btn-cancel').onclick = async () => { try { S.run = await api('POST', `/generations/${S.runId}/cancel`); closeStream(); renderRun(); refreshWallet(); refreshHistory(); toast('Run canceled — unused credits released'); } catch (e) { toast(e.message); } };
+
+function renderRun() {
+  const r = S.run;
+  $('run-empty').classList.toggle('hidden', !!r); $('run').classList.toggle('hidden', !r);
+  if (!r) return;
+  const live = !TERMINAL.includes(r.status);
+  $('r-prompt').textContent = r.prompt;
+  $('r-style').textContent = `${r.style?.name || 'No style'}${r.style?.version ? ' · v' + r.style.version : ''} · ${r.image_count} scene${r.image_count > 1 ? 's' : ''}`;
+  $('r-badges').innerHTML = `<span class="badge ${live ? 'live' : r.status}">${r.cached ? 'cached result' : r.status}</span>` +
+    (r.degraded ? '<span class="badge degraded" title="A provider was down; the fallback provider handled some steps">degraded — fallback provider used</span>' : '') +
+    (r.status === 'partial' ? `<span class="badge partial">${r.result.scenes.filter(s => s.status === 'succeeded').length} of ${r.image_count} scenes</span>` : '');
+  const pct = r.progress.total ? Math.round(r.progress.done / r.progress.total * 100) : (live ? 0 : 100);
+  $('r-meter-i').style.width = pct + '%'; $('r-meter').setAttribute('aria-valuenow', pct);
+  $('r-progress').textContent = r.cached ? 'Served from cache — no credits used.' : `${r.progress.done} of ${r.progress.total} steps finished`;
+  $('btn-cancel').classList.toggle('hidden', !live);
+  const label = s => s.kind === 'plan' ? 'Plan' : s.kind === 'compose' ? 'Compose' : `Scene ${s.idx + 1}`;
+  $('strip').innerHTML = r.steps.map(s => `<div class="frame ${s.status}">${s.image_url ? `<img alt="" src="${s.image_url}">` : s.status === 'failed' ? '✕' : s.status === 'running' ? '…' : ''}<span class="tag">${label(s)}</span></div>`).join('');
+  $('steps').innerHTML = r.steps.map(s => {
+    const cls = s.status === 'running' ? 'run' : s.status === 'succeeded' ? 'ok' : s.status === 'failed' ? 'bad' : s.status === 'canceled' ? 'off' : '';
+    const meta = s.status === 'failed' ? esc(s.error || 'failed') : s.status === 'pending' && s.error ? 'retrying…' : `${s.status}${s.provider ? ' · provider ' + s.provider : ''}${s.attempts > 1 ? ' · try ' + s.attempts : ''}`;
+    return `<div class="step"><span>${label(s)}</span><div class="bar ${cls}"><i></i></div><span class="meta" title="${esc(s.error || '')}">${meta}</span></div>`;
+  }).join('');
+  const res = r.result;
+  if (res?.scenes && (r.status === 'succeeded' || r.status === 'partial')) {
+    const frames = res.scenes.filter(s => s.image_url);
+    $('r-result').innerHTML = `<video id="vid" controls loop muted playsinline style="width:100%;border-radius:8px;background:#000;aspect-ratio:16/9"></video><div class="sub" id="vid-meta">${res.video ? esc(res.video.codec) + ' ' + esc(res.video.resolution) + ' · ' + res.video.duration_s + 's · ' + Math.round(res.video.bytes / 1024) + ' KB' : ''} · <a id="vid-dl" href="#" download="video.mp4">download</a></div>
+      ${r.status === 'partial' ? `<div class="sub">Scenes ${res.failed_scenes.map(i => i + 1).join(', ')} failed and were refunded; the video was composed from the rest.</div>` : ''}`;
+    loadVideo(r.id);
+  } else { $('r-result').innerHTML = r.status === 'failed' ? `<p class="badge failed" style="white-space:normal">${esc(r.error)}</p>` : ''; stopPlayer(); }
+  const c = r.credits;
+  $('r-credits').innerHTML = `<span><b>${c.reserved}</b><small class="sub">reserved</small></span><span><b>${c.committed}</b><small class="sub">charged</small></span><span><b>${c.released}</b><small class="sub">refunded</small></span>`;
+  const lg = $('r-log'); lg.classList.toggle('hidden', !(S.log && S.log.length)); lg.textContent = (S.log || []).slice(-12).join('\n'); lg.scrollTop = lg.scrollHeight;
+}
+async function loadVideo(id) {
+  try {
+    const res = await fetch(`/generations/${id}/video`, { headers: { authorization: 'Bearer ' + S.token, 'x-workspace-id': S.ws } });
+    if (!res.ok) throw new Error('video ' + res.status);
+    const url = URL.createObjectURL(await res.blob());
+    if (S.runId !== id) return;
+    const v = $('vid'); if (v) { v.src = url; v.play().catch(() => {}); } const d = $('vid-dl'); if (d) d.href = url;
+  } catch (e) { const m = $('vid-meta'); if (m) m.textContent = 'Could not load video: ' + e.message; }
+}
+function startPlayer() { stopPlayer(); const imgs = [...document.querySelectorAll('#player img')]; if (imgs.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return; let i = 0;
+  S.player = setInterval(() => { imgs[i].classList.remove('on'); i = (i + 1) % imgs.length; imgs[i].classList.add('on'); }, 1800); }
+function stopPlayer() { clearInterval(S.player); S.player = null; }
+
+async function refreshAll() { await Promise.all([loadStyles(), refreshWallet(), refreshHistory()]); }
+async function boot() {
+  if (!S.token) return showAuth();
+  try {
+    $('auth').classList.add('hidden'); $('app').classList.remove('hidden'); $('who').textContent = S.email || '';
+    await loadWorkspaces(); await refreshAll();
+  } catch (e) { if (!S.token) return; toast(e.message); }
+}
+setInterval(() => { if (S.token && !document.hidden) { refreshHistory().catch(() => {}); refreshWallet(); } }, 4000);
+boot();
+</script>
+</body>
+</html>
